@@ -1,145 +1,44 @@
-use iced::executor;
-use iced::widget::canvas::{Cache, Cursor, Geometry, LineCap, Path, Stroke};
-use iced::widget::{canvas, container};
-use iced::{
-    Application, Color, Command, Element, Length, Point, Rectangle, Settings,
-    Subscription, Theme, Vector,
-};
+use iced::Settings;
+use iced::pure::widget::{Button, Column, Container, Text};
+use iced::pure::Sandbox;
 
-pub fn main() -> iced::Result {
-    Clock::run(Settings {
-        antialiasing: true,
-        ..Settings::default()
-    })
+fn main() -> Result<(), iced::Error> {
+    Counter::run(Settings::default())
 }
 
-struct Clock {
-    now: time::OffsetDateTime,
-    clock: Cache,
+struct Counter {
+    count: i32,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Message {
-    Tick(time::OffsetDateTime),
+enum CounterMessage {
+    Increment,
+    Decrement,
 }
 
-impl Application for Clock {
-    type Message = Message;
-    type Theme = Theme;
-    type Executor = executor::Default;
-    type Flags = ();
+impl Sandbox for Counter {
+    type Message = CounterMessage;
 
-    fn new(_flags: ()) -> (Self, Command<Message>) {
-        (
-            Clock {
-                now: time::OffsetDateTime::now_local()
-                    .unwrap_or_else(|_| time::OffsetDateTime::now_utc()),
-                clock: Default::default(),
-            },
-            Command::none(),
-        )
+    fn new() -> Self {
+        Counter { count: 0 }
     }
 
     fn title(&self) -> String {
-        String::from("Clock - Iced")
+        String::from("Counter app")
     }
 
-    fn update(&mut self, message: Message) -> Command<Message> {
+    fn update(&mut self, message: Self::Message) {
         match message {
-            Message::Tick(local_time) => {
-                let now = local_time;
-
-                if now != self.now {
-                    self.now = now;
-                    self.clock.clear();
-                }
-            }
+            CounterMessage::Increment => self.count += 1,
+            CounterMessage::Decrement => self.count -= 1,
         }
-
-        Command::none()
     }
 
-    fn subscription(&self) -> Subscription<Message> {
-        iced::time::every(std::time::Duration::from_millis(500)).map(|_| {
-            Message::Tick(
-                time::OffsetDateTime::now_local()
-                    .unwrap_or_else(|_| time::OffsetDateTime::now_utc()),
-            )
-        })
+    fn view(&self) -> iced::pure::Element<Self::Message> {
+        let label = Text::new(format!("Count: {}", self.count));
+        let incr = Button::new("Increment").on_press(CounterMessage::Increment);
+        let decr = Button::new("Decrement").on_press(CounterMessage::Decrement);
+        let col = Column::new().push(incr).push(label).push(decr);
+        Container::new(col).center_x().center_y().width(iced::Length::Fill).height(iced::Length::Fill).into()
     }
-
-    fn view(&self) -> Element<Message> {
-        let canvas = canvas(self as &Self)
-            .width(Length::Fill)
-            .height(Length::Fill);
-
-        container(canvas)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(20)
-            .into()
-    }
-}
-
-impl<Message> canvas::Program<Message> for Clock {
-    type State = ();
-
-    fn draw(
-        &self,
-        _state: &Self::State,
-        _theme: &Theme,
-        bounds: Rectangle,
-        _cursor: Cursor,
-    ) -> Vec<Geometry> {
-        let clock = self.clock.draw(bounds.size(), |frame| {
-            let center = frame.center();
-            let radius = frame.width().min(frame.height()) / 2.0;
-
-            let background = Path::circle(center, radius);
-            frame.fill(&background, Color::from_rgb8(0x12, 0x93, 0xD8));
-
-            let short_hand =
-                Path::line(Point::ORIGIN, Point::new(0.0, -0.5 * radius));
-
-            let long_hand =
-                Path::line(Point::ORIGIN, Point::new(0.0, -0.8 * radius));
-
-            let thin_stroke = Stroke {
-                width: radius / 100.0,
-                color: Color::WHITE,
-                line_cap: LineCap::Round,
-                ..Stroke::default()
-            };
-
-            let wide_stroke = Stroke {
-                width: thin_stroke.width * 3.0,
-                ..thin_stroke
-            };
-
-            frame.translate(Vector::new(center.x, center.y));
-
-            frame.with_save(|frame| {
-                frame.rotate(hand_rotation(self.now.hour(), 12));
-                frame.stroke(&short_hand, wide_stroke);
-            });
-
-            frame.with_save(|frame| {
-                frame.rotate(hand_rotation(self.now.minute(), 60));
-                frame.stroke(&long_hand, wide_stroke);
-            });
-
-            frame.with_save(|frame| {
-                frame.rotate(hand_rotation(self.now.second(), 60));
-                frame.stroke(&long_hand, thin_stroke);
-            })
-        });
-
-        vec![clock]
-    }
-}
-
-fn hand_rotation(n: u8, total: u8) -> f32 {
-    let turns = n as f32 / total as f32;
-
-    2.0 * std::f32::consts::PI * turns
 }
